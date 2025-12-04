@@ -6,17 +6,40 @@ interface TierBadgeProps {
   tierPoint: number;
 }
 
+// Tiers that have MP4 video files
+const VIDEO_TIERS: TierCode[] = ['BR', 'DM', 'GD', 'GM', 'IR', 'M', 'PT'];
+
+// Text display for tiers without videos
+const TEXT_TIERS: Record<string, string> = {
+  AM: 'Amateur',
+  BG: 'Beginner',
+  SV: 'Silver',
+};
+
 export function TierBadge({ tier, tierPoint }: TierBadgeProps) {
   const style = TIER_STYLES[tier.code as TierCode] || TIER_STYLES.BG;
+  const tierCode = tier.code as TierCode;
+  const hasVideo = VIDEO_TIERS.includes(tierCode);
 
   return (
     <div className="flex flex-col items-center gap-3">
       {/* Tier Badge */}
       <div className={`relative w-20 h-20 rounded-full bg-gradient-to-br ${style.gradient} p-[3px] shadow-lg ${style.glow}`}>
-        <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
-          <span className={`text-xl font-black ${style.text}`}>
-            {tier.code}
-          </span>
+        <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center overflow-hidden">
+          {hasVideo ? (
+            <video
+              src={`/image/tier/${tierCode}.mp4`}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover rounded-full"
+            />
+          ) : (
+            <span className={`text-xs font-black ${style.text} text-center px-1`}>
+              {TEXT_TIERS[tierCode] || tierCode}
+            </span>
+          )}
         </div>
       </div>
 
