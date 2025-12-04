@@ -45,7 +45,7 @@ function App() {
       {/* Header */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-          V-ARCHIVE
+          Card Maker - V Archive
         </h1>
       </div>
 
