@@ -97,10 +97,18 @@ export async function downloadCardAsImage(
   filename: string = 'tier-card.png'
 ): Promise<void> {
   try {
-    const dataUrl = await toPng(element, {
-      quality: 1,
-      pixelRatio: 2,
-    });
+    const video = element.querySelector('video');
+    let dataUrl: string;
+
+    if (video) {
+      // 비디오가 있으면 캔버스로 교체 후 캡처
+      dataUrl = await captureWithVideoAsCanvas(element, video);
+    } else {
+      dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2,
+      });
+    }
 
     if (isMobile()) {
       // 모바일: Web Share API 시도 → 실패 시 새 탭
@@ -115,6 +123,59 @@ export async function downloadCardAsImage(
   } catch (error) {
     console.error('이미지 다운로드 실패:', error);
     throw error;
+  }
+}
+
+/**
+ * 비디오를 캔버스로 교체한 후 캡처
+ */
+async function captureWithVideoAsCanvas(
+  element: HTMLElement,
+  video: HTMLVideoElement
+): Promise<string> {
+  const videoParent = video.parentElement;
+  if (!videoParent) {
+    throw new Error('비디오 부모 요소를 찾을 수 없습니다');
+  }
+
+  // 비디오 로드 확인
+  await ensureVideoLoaded(video);
+
+  // 캔버스 생성
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('캔버스 컨텍스트 생성 실패');
+  }
+
+  const videoWidth = video.videoWidth || video.clientWidth || 200;
+  const videoHeight = video.videoHeight || video.clientHeight || 200;
+
+  canvas.width = videoWidth;
+  canvas.height = videoHeight;
+  canvas.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:9999px;';
+
+  // 현재 비디오 프레임을 캔버스에 그리기
+  ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+  // 비디오를 캔버스로 교체
+  videoParent.removeChild(video);
+  videoParent.appendChild(canvas);
+
+  // 렌더링 안정화 대기
+  await new Promise(r => setTimeout(r, 50));
+
+  try {
+    // 캡처
+    const dataUrl = await toPng(element, {
+      quality: 1,
+      pixelRatio: 2,
+    });
+    return dataUrl;
+  } finally {
+    // 비디오 복원
+    videoParent.removeChild(canvas);
+    videoParent.appendChild(video);
   }
 }
 

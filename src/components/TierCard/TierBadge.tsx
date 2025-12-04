@@ -33,6 +33,7 @@ export function TierBadge({ tier, tierPoint }: TierBadgeProps) {
               loop
               muted
               playsInline
+              preload="auto"
               crossOrigin="anonymous"
               className="w-full h-full object-cover rounded-full"
             />
