@@ -24,35 +24,35 @@ export function TopRecord({ record, rank }: TopRecordProps) {
   const rankColor = rankStyles[rank] || 'text-gray-500';
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-black/30 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+    <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-black/30 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
       {/* Rank */}
-      <div className={`text-2xl font-black w-8 ${rankColor}`}>
+      <div className={`text-xl sm:text-2xl font-black w-6 sm:w-8 ${rankColor}`}>
         {rank}
       </div>
 
       {/* Song Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-white truncate text-sm">{record.name}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pattern.bg} ${pattern.text}`}>
+        <p className="font-semibold text-white truncate text-xs sm:text-sm">{record.name}</p>
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+          <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold ${pattern.bg} ${pattern.text}`}>
             {record.pattern} {record.level}
           </span>
 
-          <span className="text-xs text-gray-500">SC {record.floor}</span>
+          <span className="text-[10px] sm:text-xs text-gray-500">SC {record.floor}</span>
         </div>
       </div>
 
       {/* Score & Rating */}
       <div className="text-right">
-        <div className="flex items-center justify-end gap-1.5">
-          <span className="text-base font-bold text-white">{record.score}%</span>
+        <div className="flex items-center justify-end gap-1 sm:gap-1.5">
+          <span className="text-sm sm:text-base font-bold text-white">{record.score}%</span>
           {isMaxCombo && (
-            <span className="text-[9px] px-1 py-0.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded font-bold">
+            <span className="text-[8px] sm:text-[9px] px-1 py-0.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded font-bold">
               MC
             </span>
           )}
         </div>
-        <p className="text-xs text-cyan-400 font-mono">{parseFloat(record.rating).toFixed(2)}</p>
+        <p className="text-[10px] sm:text-xs text-cyan-400 font-mono">{parseFloat(record.rating).toFixed(2)}</p>
       </div>
     </div>
   );

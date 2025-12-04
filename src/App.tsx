@@ -41,10 +41,10 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center py-12 px-4">
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center py-8 sm:py-12 px-4">
       {/* Header */}
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+      <div className="text-center mb-8 sm:mb-10">
+        <h1 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
           Card Maker - V Archive
         </h1>
       </div>
