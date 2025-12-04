@@ -1,6 +1,97 @@
 import { toPng } from 'html-to-image';
 import { createGIF } from 'gifshot';
 
+/**
+ * 모바일 기기 감지
+ */
+function isMobile(): boolean {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Data URL을 Blob으로 변환
+ */
+function dataUrlToBlob(dataUrl: string): Blob {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+/**
+ * Web Share API로 공유 (모바일)
+ */
+async function shareImage(dataUrl: string, filename: string): Promise<boolean> {
+  if (!navigator.share || !navigator.canShare) {
+    return false;
+  }
+
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const file = new File([blob], filename, { type: blob.type });
+
+    if (!navigator.canShare({ files: [file] })) {
+      return false;
+    }
+
+    await navigator.share({
+      files: [file],
+      title: 'V-Archive Tier Card',
+    });
+    return true;
+  } catch (error) {
+    // 사용자가 공유 취소한 경우
+    if ((error as Error).name === 'AbortError') {
+      return true;
+    }
+    return false;
+  }
+}
+
+/**
+ * 새 탭에서 이미지 열기 (fallback)
+ */
+function openInNewTab(dataUrl: string): void {
+  const newTab = window.open();
+  if (newTab) {
+    newTab.document.write(`
+      <html>
+        <head>
+          <title>V-Archive Tier Card</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #111; }
+            img { max-width: 100%; height: auto; }
+            p { color: #888; text-align: center; padding: 20px; font-family: sans-serif; }
+          </style>
+        </head>
+        <body>
+          <div>
+            <img src="${dataUrl}" alt="Tier Card" />
+            <p>이미지를 길게 눌러 저장하세요</p>
+          </div>
+        </body>
+      </html>
+    `);
+    newTab.document.close();
+  }
+}
+
+/**
+ * 데스크톱 다운로드
+ */
+function downloadFile(dataUrl: string, filename: string): void {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
+}
+
 export async function downloadCardAsImage(
   element: HTMLElement,
   filename: string = 'tier-card.png'
@@ -11,10 +102,16 @@ export async function downloadCardAsImage(
       pixelRatio: 2,
     });
 
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = dataUrl;
-    link.click();
+    if (isMobile()) {
+      // 모바일: Web Share API 시도 → 실패 시 새 탭
+      const shared = await shareImage(dataUrl, filename);
+      if (!shared) {
+        openInNewTab(dataUrl);
+      }
+    } else {
+      // 데스크톱: 일반 다운로드
+      downloadFile(dataUrl, filename);
+    }
   } catch (error) {
     console.error('이미지 다운로드 실패:', error);
     throw error;
@@ -52,10 +149,16 @@ export async function downloadCardAsGif(
 
     const gifDataUrl = await createGifFromFrames(frames, frameDuration);
 
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = gifDataUrl;
-    link.click();
+    if (isMobile()) {
+      // 모바일: Web Share API 시도 → 실패 시 새 탭
+      const shared = await shareImage(gifDataUrl, filename);
+      if (!shared) {
+        openInNewTab(gifDataUrl);
+      }
+    } else {
+      // 데스크톱: 일반 다운로드
+      downloadFile(gifDataUrl, filename);
+    }
   } catch (error) {
     console.error('GIF 다운로드 실패:', error);
     throw error;
