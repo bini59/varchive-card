@@ -148,8 +148,9 @@ async function captureWithVideoAsCanvas(
     throw new Error('캔버스 컨텍스트 생성 실패');
   }
 
-  const videoWidth = video.videoWidth || video.clientWidth || 200;
-  const videoHeight = video.videoHeight || video.clientHeight || 200;
+  // 비디오 실제 해상도 (340x340) 고정 - 모바일에서 videoWidth가 0일 수 있음
+  const videoWidth = video.videoWidth > 0 ? video.videoWidth : 340;
+  const videoHeight = video.videoHeight > 0 ? video.videoHeight : 340;
 
   canvas.width = videoWidth;
   canvas.height = videoHeight;
@@ -260,7 +261,7 @@ function ensureVideoLoaded(video: HTMLVideoElement): Promise<void> {
 }
 
 /**
- * 비디오의 여러 프레임에서 카드 이미지 캡처
+ * 비디오의 여러 프레임에서 카드 이미지 캡처 (PNG와 동일한 방식)
  */
 async function captureVideoFrames(
   element: HTMLElement,
@@ -285,9 +286,12 @@ async function captureVideoFrames(
     throw new Error('비디오 부모 요소를 찾을 수 없습니다');
   }
 
-  // 비디오와 같은 크기로 캔버스 설정
-  const videoWidth = video.videoWidth || video.clientWidth || 200;
-  const videoHeight = video.videoHeight || video.clientHeight || 200;
+  // 비디오 실제 해상도 (340x340) 고정 - 모바일에서 videoWidth가 0일 수 있음
+  const videoWidth = video.videoWidth > 0 ? video.videoWidth : 340;
+  const videoHeight = video.videoHeight > 0 ? video.videoHeight : 340;
+
+  // 비디오를 먼저 DOM에서 제거
+  videoParent.removeChild(video);
 
   for (let i = 0; i < frameCount; i++) {
     // 매 프레임마다 새로운 캔버스 생성
@@ -300,21 +304,18 @@ async function captureVideoFrames(
     frameCanvas.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:9999px;';
 
     try {
-      const time = (i * interval) % duration;
-
       // 비디오 시간 설정 및 대기
-      video.currentTime = time;
+      video.currentTime = (i * interval) % duration;
       await waitForVideoSeek(video);
 
       // 비디오 프레임을 캔버스에 그리기
       frameCtx.drawImage(video, 0, 0, videoWidth, videoHeight);
 
-      // 비디오를 DOM에서 완전히 제거하고 캔버스로 교체
-      videoParent.removeChild(video);
+      // 캔버스를 DOM에 추가
       videoParent.appendChild(frameCanvas);
 
-      // 잠시 대기 (렌더링 안정화)
-      await new Promise(r => setTimeout(r, 50));
+      // 렌더링 안정화 대기
+      await new Promise(r => setTimeout(r, 100));
 
       // 전체 카드 캡처
       const cardFrame = await toPng(element, {
@@ -322,24 +323,20 @@ async function captureVideoFrames(
         pixelRatio: 2,
       });
       frames.push(cardFrame);
-      console.log(`프레임 ${i} 캡처 성공, 크기: ${cardFrame.length}`);
 
-      // 캔버스 제거하고 비디오 복원
+      // 캔버스 제거
       videoParent.removeChild(frameCanvas);
-      videoParent.appendChild(video);
     } catch (frameError) {
       console.warn(`프레임 ${i} 캡처 실패:`, frameError);
-      // 실패한 프레임은 건너뛰고 계속 진행
+      // 캔버스가 DOM에 있으면 제거
       if (frameCanvas.parentElement) {
         videoParent.removeChild(frameCanvas);
-      }
-      if (!video.parentElement) {
-        videoParent.appendChild(video);
       }
     }
   }
 
-  // 비디오 상태 복원
+  // 비디오 복원
+  videoParent.appendChild(video);
   if (wasPlaying) {
     video.play().catch(() => {});
   }
