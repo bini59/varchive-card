@@ -9,6 +9,72 @@ function isMobile(): boolean {
 }
 
 /**
+ * 적절한 pixelRatio 계산 (모바일에서는 낮추기)
+ */
+function getOptimalPixelRatio(): number {
+  if (isMobile()) {
+    // 모바일에서는 devicePixelRatio를 그대로 사용하되 최대 2로 제한
+    return Math.min(window.devicePixelRatio || 1, 2);
+  }
+  return 2;
+}
+
+/**
+ * html-to-image 공통 옵션
+ */
+function getImageOptions() {
+  return {
+    quality: 1,
+    pixelRatio: getOptimalPixelRatio(),
+    cacheBust: true,
+    // 외부 폰트 인라인으로 포함
+    includeQueryParams: true,
+    // 스타일 복사 시 계산된 스타일 사용
+    skipAutoScale: true,
+  };
+}
+
+/**
+ * 재시도 로직이 포함된 toPng
+ */
+async function toPngWithRetry(
+  element: HTMLElement,
+  maxRetries: number = 3
+): Promise<string> {
+  const options = getImageOptions();
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // 첫 시도 전에 약간의 대기 (리소스 로딩 보장)
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      const dataUrl = await toPng(element, options);
+
+      // 유효한 데이터인지 확인 (빈 이미지 체크)
+      if (dataUrl && dataUrl.length > 1000) {
+        return dataUrl;
+      }
+
+      // 너무 작은 이미지면 재시도
+      lastError = new Error('생성된 이미지가 너무 작습니다');
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`캡처 시도 ${attempt + 1} 실패:`, error);
+    }
+
+    // 재시도 전 대기 (점점 길게)
+    if (attempt < maxRetries - 1) {
+      await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+    }
+  }
+
+  throw lastError || new Error('이미지 캡처 실패');
+}
+
+/**
  * Data URL을 Blob으로 변환
  */
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -104,10 +170,8 @@ export async function downloadCardAsImage(
       // 비디오가 있으면 캔버스로 교체 후 캡처
       dataUrl = await captureWithVideoAsCanvas(element, video);
     } else {
-      dataUrl = await toPng(element, {
-        quality: 1,
-        pixelRatio: 2,
-      });
+      // 재시도 로직이 포함된 캡처
+      dataUrl = await toPngWithRetry(element);
     }
 
     if (isMobile()) {
@@ -163,15 +227,13 @@ async function captureWithVideoAsCanvas(
   videoParent.removeChild(video);
   videoParent.appendChild(canvas);
 
-  // 렌더링 안정화 대기
-  await new Promise(r => setTimeout(r, 50));
+  // 렌더링 안정화 대기 - 모바일에서는 더 긴 대기 시간 필요
+  const waitTime = isMobile() ? 200 : 100;
+  await new Promise(r => setTimeout(r, waitTime));
 
   try {
-    // 캡처
-    const dataUrl = await toPng(element, {
-      quality: 1,
-      pixelRatio: 2,
-    });
+    // 재시도 로직이 포함된 캡처
+    const dataUrl = await toPngWithRetry(element);
     return dataUrl;
   } finally {
     // 비디오 복원
@@ -314,14 +376,12 @@ async function captureVideoFrames(
       // 캔버스를 DOM에 추가
       videoParent.appendChild(frameCanvas);
 
-      // 렌더링 안정화 대기
-      await new Promise(r => setTimeout(r, 100));
+      // 렌더링 안정화 대기 - 모바일에서는 더 긴 대기 시간
+      const waitTime = isMobile() ? 150 : 100;
+      await new Promise(r => setTimeout(r, waitTime));
 
-      // 전체 카드 캡처
-      const cardFrame = await toPng(element, {
-        quality: 1,
-        pixelRatio: 2,
-      });
+      // 전체 카드 캡처 (개선된 옵션 사용)
+      const cardFrame = await toPng(element, getImageOptions());
       frames.push(cardFrame);
 
       // 캔버스 제거
