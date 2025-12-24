@@ -24,7 +24,7 @@ export function TierBadge({ tier, tierPoint }: TierBadgeProps) {
   return (
     <div className="flex flex-col items-center gap-2 sm:gap-3">
       {/* Tier Badge */}
-      <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br ${style.gradient} p-[2px] sm:p-[3px] shadow-lg ${style.glow}`}>
+      <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br ${style.gradient} p-[2px] sm:p-[3px]`}>
         <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center overflow-hidden">
           {hasVideo ? (
             <video
