@@ -59,7 +59,7 @@ function App() {
   };
 
   // 비디오 티어 목록
-  const VIDEO_TIERS = ['BR', 'DM', 'GD', 'GM', 'IR', 'M', 'PT'];
+  const VIDEO_TIERS = ['BR', 'DM', 'GD', 'GM', 'IR', 'M', 'PT', 'SV'];
   const showGifButton = tierData && VIDEO_TIERS.includes(tierData.tier.code);
 
   return (
