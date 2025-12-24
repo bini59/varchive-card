@@ -18,7 +18,7 @@ export const TierCard = forwardRef<HTMLDivElement, TierCardProps>(
     return (
       <div
         ref={ref}
-        className={`w-full max-w-[420px] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-2xl`}
+        className={`w-full max-w-[420px] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl overflow-hidden`}
       >
         {/* Top Border Gradient */}
         <div className={`h-1 bg-gradient-to-r ${style.gradient}`} />
