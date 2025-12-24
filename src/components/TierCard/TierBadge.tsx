@@ -7,13 +7,12 @@ interface TierBadgeProps {
 }
 
 // Tiers that have MP4 video files
-const VIDEO_TIERS: TierCode[] = ['BR', 'DM', 'GD', 'GM', 'IR', 'M', 'PT'];
+const VIDEO_TIERS: TierCode[] = ['BR', 'DM', 'GD', 'GM', 'IR', 'M', 'PT', 'SV'];
 
 // Text display for tiers without videos
 const TEXT_TIERS: Record<string, string> = {
   AM: 'Amateur',
   BG: 'Beginner',
-  SV: 'Silver',
 };
 
 export function TierBadge({ tier, tierPoint }: TierBadgeProps) {
