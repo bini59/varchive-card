@@ -265,7 +265,7 @@ async function captureWithVideoAsCanvas(
 }
 
 /**
- * 비디오가 포함된 카드를 GIF로 다운로드
+ * 비디오가 포함된 카드를 GIF로 다운로드 (Canvas 합성 방식)
  */
 export async function downloadCardAsGif(
   element: HTMLElement,
@@ -287,7 +287,8 @@ export async function downloadCardAsGif(
     // 비디오 메타데이터 로드 대기
     await ensureVideoLoaded(video);
 
-    const frames = await captureVideoFrames(element, video, frameCount);
+    // Canvas 합성 방식으로 프레임 생성
+    const frames = await createFramesWithCanvasComposite(element, video, frameCount);
 
     if (frames.length === 0) {
       throw new Error('프레임을 캡처하지 못했습니다');
@@ -309,6 +310,136 @@ export async function downloadCardAsGif(
     console.error('GIF 다운로드 실패:', error);
     throw error;
   }
+}
+
+/**
+ * Canvas 합성 방식으로 GIF 프레임 생성
+ * 배경은 한 번만 캡처하고, 비디오 프레임만 Canvas에서 합성
+ */
+async function createFramesWithCanvasComposite(
+  element: HTMLElement,
+  video: HTMLVideoElement,
+  frameCount: number
+): Promise<string[]> {
+  const videoParent = video.parentElement;
+  if (!videoParent) {
+    throw new Error('비디오 부모 요소를 찾을 수 없습니다');
+  }
+
+  // 1. 비디오 영역의 위치와 크기 계산 (카드 기준 상대 좌표)
+  const cardRect = element.getBoundingClientRect();
+  const videoRect = video.getBoundingClientRect();
+
+  const pixelRatio = getOptimalPixelRatio();
+
+  // 카드 내에서 비디오의 상대 위치 (픽셀 비율 적용)
+  const videoPosition = {
+    x: (videoRect.left - cardRect.left) * pixelRatio,
+    y: (videoRect.top - cardRect.top) * pixelRatio,
+    width: videoRect.width * pixelRatio,
+    height: videoRect.height * pixelRatio,
+  };
+
+  // 2. 비디오를 투명 placeholder로 교체하고 배경 캡처
+  const placeholder = document.createElement('div');
+  placeholder.style.cssText = video.style.cssText;
+  placeholder.style.width = '100%';
+  placeholder.style.height = '100%';
+  placeholder.style.backgroundColor = 'transparent';
+  placeholder.style.borderRadius = '9999px';
+
+  videoParent.removeChild(video);
+  videoParent.appendChild(placeholder);
+
+  // 렌더링 안정화 대기
+  await new Promise(r => setTimeout(r, 100));
+
+  // 배경 이미지 캡처 (비디오 영역은 비어있음)
+  const backgroundDataUrl = await toPngWithRetry(element);
+
+  // placeholder 제거, 비디오 복원
+  videoParent.removeChild(placeholder);
+  videoParent.appendChild(video);
+
+  // 3. 배경 이미지 로드
+  const backgroundImg = await loadImage(backgroundDataUrl);
+
+  // 4. 비디오 프레임들을 캡처하고 배경과 합성
+  const frames: string[] = [];
+  const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 2;
+  const interval = duration / frameCount;
+
+  const wasPlaying = !video.paused;
+  video.pause();
+
+  // 비디오 크기
+  const videoWidth = video.videoWidth > 0 ? video.videoWidth : 340;
+  const videoHeight = video.videoHeight > 0 ? video.videoHeight : 340;
+
+  for (let i = 0; i < frameCount; i++) {
+    try {
+      // 비디오 시간 설정
+      video.currentTime = (i * interval) % duration;
+      await waitForVideoSeek(video);
+
+      // 합성 캔버스 생성
+      const compositeCanvas = document.createElement('canvas');
+      compositeCanvas.width = backgroundImg.width;
+      compositeCanvas.height = backgroundImg.height;
+      const ctx = compositeCanvas.getContext('2d');
+
+      if (!ctx) continue;
+
+      // 배경 그리기
+      ctx.drawImage(backgroundImg, 0, 0);
+
+      // 비디오 프레임을 원형으로 클리핑하여 그리기
+      ctx.save();
+
+      // 원형 클리핑 패스 생성
+      const centerX = videoPosition.x + videoPosition.width / 2;
+      const centerY = videoPosition.y + videoPosition.height / 2;
+      const radius = Math.min(videoPosition.width, videoPosition.height) / 2;
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      // 비디오 프레임 그리기 (클리핑된 영역에만)
+      ctx.drawImage(
+        video,
+        0, 0, videoWidth, videoHeight,  // 소스
+        videoPosition.x, videoPosition.y, videoPosition.width, videoPosition.height  // 대상
+      );
+
+      ctx.restore();
+
+      // 프레임을 data URL로 변환
+      frames.push(compositeCanvas.toDataURL('image/png'));
+    } catch (frameError) {
+      console.warn(`프레임 ${i} 합성 실패:`, frameError);
+    }
+  }
+
+  // 비디오 재생 상태 복원
+  if (wasPlaying) {
+    video.play().catch(() => {});
+  }
+
+  return frames;
+}
+
+/**
+ * 이미지 로드 헬퍼
+ */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('이미지 로드 실패'));
+    img.src = src;
+  });
 }
 
 /**
@@ -342,87 +473,6 @@ function ensureVideoLoaded(video: HTMLVideoElement): Promise<void> {
     video.addEventListener('loadeddata', onLoaded);
     video.addEventListener('error', onError);
   });
-}
-
-/**
- * 비디오의 여러 프레임에서 카드 이미지 캡처 (img 태그 사용으로 안정적)
- */
-async function captureVideoFrames(
-  element: HTMLElement,
-  video: HTMLVideoElement,
-  frameCount: number
-): Promise<string[]> {
-  const frames: string[] = [];
-
-  // duration이 유효한지 확인
-  const duration = isFinite(video.duration) && video.duration > 0
-    ? video.duration
-    : 2;
-  const interval = duration / frameCount;
-
-  // 비디오 상태 저장
-  const wasPlaying = !video.paused;
-  video.pause();
-
-  // 비디오의 부모 요소
-  const videoParent = video.parentElement;
-  if (!videoParent) {
-    throw new Error('비디오 부모 요소를 찾을 수 없습니다');
-  }
-
-  // 비디오를 먼저 DOM에서 제거
-  videoParent.removeChild(video);
-
-  for (let i = 0; i < frameCount; i++) {
-    try {
-      // 비디오 시간 설정 및 대기
-      video.currentTime = (i * interval) % duration;
-      await waitForVideoSeek(video);
-
-      // 비디오 프레임을 이미지 data URL로 변환
-      const frameDataUrl = videoFrameToDataUrl(video);
-
-      // img 태그 생성 (html-to-image에서 canvas보다 안정적)
-      const img = document.createElement('img');
-      img.src = frameDataUrl;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:9999px;';
-
-      // 이미지 로드 대기
-      await new Promise<void>((resolve) => {
-        img.onload = () => resolve();
-        if (img.complete) resolve();
-      });
-
-      // img를 DOM에 추가
-      videoParent.appendChild(img);
-
-      // 렌더링 안정화 대기 - 모바일에서는 더 긴 대기 시간
-      const waitTime = isMobile() ? 200 : 100;
-      await new Promise(r => setTimeout(r, waitTime));
-
-      // 전체 카드 캡처 (개선된 옵션 사용)
-      const cardFrame = await toPng(element, getImageOptions());
-      frames.push(cardFrame);
-
-      // img 제거
-      videoParent.removeChild(img);
-    } catch (frameError) {
-      console.warn(`프레임 ${i} 캡처 실패:`, frameError);
-      // img가 DOM에 있으면 제거
-      const existingImg = videoParent.querySelector('img');
-      if (existingImg) {
-        videoParent.removeChild(existingImg);
-      }
-    }
-  }
-
-  // 비디오 복원
-  videoParent.appendChild(video);
-  if (wasPlaying) {
-    video.play().catch(() => {});
-  }
-
-  return frames;
 }
 
 /**
